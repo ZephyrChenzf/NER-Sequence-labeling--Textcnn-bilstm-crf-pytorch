@@ -210,64 +210,64 @@ else:
 
 optimzier=optim.Adam(model.parameters(),lr=1e-3)
 
-best_acc=0
-best_model=None
-for epoch in range(num_epoches):
-    train_loss=0
-    train_acc=0
-    model.train()
-    for i,data in enumerate(trainDataLoader):
-        x,y,mask=data
-        if use_cuda:
-            x=Variable(x).cuda()
-            y=Variable(y).cuda()
-            mask=Variable(mask).cuda()
-        else:
-            x=Variable(x)
-            y=Variable(y)
-            mask=Variable(mask)
-        loss=model.neg_log_likelihood(x,y,mask)
-        train_loss+=loss.data[0]
-        _,prepath=model(x,mask)
-        acc_num=(prepath==y).data.sum()
-        train_acc+=acc_num
-        #backward
-        optimzier.zero_grad()
-        loss.backward()
-        optimzier.step()
-        if (i + 1) % 10 == 0:
-            print('[{}/{}],train loss is:{:.6f},train acc is:{:.6f}'.format(i, len(trainDataLoader),
-                                                                            train_loss / (i),
-                                                                            train_acc / (i * batch_size*MAXLEN)))
-    print(
-        'epoch:[{}],train loss is:{:.6f},train acc is:{:.6f}'.format(epoch,
-                                                                     train_loss / (len(trainDataLoader)),
-                                                                     train_acc / (len(trainDataLoader) * batch_size*MAXLEN)))
-    model.eval()
-    eval_loss = 0
-    eval_acc = 0
-    for i, data in enumerate(valDataLoader):
-        x, y,mask = data
-        if use_cuda:
-            x = Variable(x, volatile=True).cuda()
-            y = Variable(y, volatile=True).cuda()
-            mask=Variable(mask,volatile=True).cuda()
-        else:
-            x = Variable(x, volatile=True)
-            y = Variable(y, volatile=True)
-            mask = Variable(mask, volatile=True)
-        loss=model.neg_log_likelihood(x,y,mask)
-        eval_loss += loss.data[0]
-        _, prepath = model(x,mask)
-        acc_num = (prepath == y).data.sum()
-        eval_acc += acc_num
-    print('val loss is:{:.6f},test acc is:{:.6f}'.format(
-        eval_loss / (len(valDataLoader) ),
-        eval_acc / (len(valDataLoader) * batch_size*MAXLEN)))
-    if best_acc < (eval_acc / (len(valDataLoader) * batch_size*MAXLEN)):
-        best_acc = eval_acc / (len(valDataLoader) * batch_size*MAXLEN)
-        best_model = model.state_dict()
-        print('best acc is {:.6f},best model is changed'.format(best_acc))
-
-torch.save(best_model.state_dict(),'./model/best_model.pth')
-torch.save(model.state_dict(),'./model/last_model.pth')
+# best_acc=0
+# best_model=None
+# for epoch in range(num_epoches):
+#     train_loss=0
+#     train_acc=0
+#     model.train()
+#     for i,data in enumerate(trainDataLoader):
+#         x,y,mask=data
+#         if use_cuda:
+#             x=Variable(x).cuda()
+#             y=Variable(y).cuda()
+#             mask=Variable(mask).cuda()
+#         else:
+#             x=Variable(x)
+#             y=Variable(y)
+#             mask=Variable(mask)
+#         loss=model.neg_log_likelihood(x,y,mask)
+#         train_loss+=loss.data[0]
+#         _,prepath=model(x,mask)
+#         acc_num=(prepath==y).data.sum()
+#         train_acc+=acc_num
+#         #backward
+#         optimzier.zero_grad()
+#         loss.backward()
+#         optimzier.step()
+#         if (i + 1) % 10 == 0:
+#             print('[{}/{}],train loss is:{:.6f},train acc is:{:.6f}'.format(i+1, len(trainDataLoader),
+#                                                                             train_loss / (i+1),
+#                                                                             train_acc / (i * batch_size*MAXLEN)))
+#     print(
+#         'epoch:[{}],train loss is:{:.6f},train acc is:{:.6f}'.format(epoch,
+#                                                                      train_loss / (len(trainDataLoader)),
+#                                                                      train_acc / (len(trainDataLoader) * batch_size*MAXLEN)))
+#     model.eval()
+#     eval_loss = 0
+#     eval_acc = 0
+#     for i, data in enumerate(valDataLoader):
+#         x, y,mask = data
+#         if use_cuda:
+#             x = Variable(x, volatile=True).cuda()
+#             y = Variable(y, volatile=True).cuda()
+#             mask=Variable(mask,volatile=True).cuda()
+#         else:
+#             x = Variable(x, volatile=True)
+#             y = Variable(y, volatile=True)
+#             mask = Variable(mask, volatile=True)
+#         loss=model.neg_log_likelihood(x,y,mask)
+#         eval_loss += loss.data[0]
+#         _, prepath = model(x,mask)
+#         acc_num = (prepath == y).data.sum()
+#         eval_acc += acc_num
+#     print('val loss is:{:.6f},test acc is:{:.6f}'.format(
+#         eval_loss / (len(valDataLoader) ),
+#         eval_acc / (len(valDataLoader) * batch_size*MAXLEN)))
+#     if best_acc < (eval_acc / (len(valDataLoader) * batch_size*MAXLEN)):
+#         best_acc = eval_acc / (len(valDataLoader) * batch_size*MAXLEN)
+#         best_model = model.state_dict()
+#         print('best acc is {:.6f},best model is changed'.format(best_acc))
+#
+# torch.save(best_model.state_dict(),'./model/best_model.pth')
+# torch.save(model.state_dict(),'./model/last_model.pth')

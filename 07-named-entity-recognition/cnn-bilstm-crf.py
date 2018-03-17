@@ -294,9 +294,9 @@ for epoch in range(num_epoches):
         loss.backward()
         optimzier.step()
         if (i + 1) % 10 == 0:
-            print('[{}/{}],train loss is:{:.6f},train acc is:{:.6f}'.format(i, len(trainDataLoader),
-                                                                            train_loss / (i),
-                                                                            train_acc / (i)))
+            print('[{}/{}],train loss is:{:.6f},train acc is:{:.6f}'.format(i+1, len(trainDataLoader),
+                                                                            train_loss / (i+1),
+                                                                            train_acc / (i+1)))
     print(
         'epoch:[{}],train loss is:{:.6f},train acc is:{:.6f}'.format(epoch,
                                                                      train_loss / (len(trainDataLoader)),
