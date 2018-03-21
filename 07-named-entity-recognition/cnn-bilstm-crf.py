@@ -21,7 +21,7 @@ MAXLEN=100
 vcab_size=len(word2index)
 emb_dim=128
 hidden_dim=256
-num_epoches=30
+num_epoches=20
 batch_size=16
 
 
@@ -326,7 +326,7 @@ for epoch in range(num_epoches):
         acc_num = (pre_y == true_y).data.sum()
         acc_pro = float(acc_num) / len(pre_y)
         eval_acc += acc_pro
-    print('val loss is:{:.6f},test acc is:{:.6f}'.format(
+    print('val loss is:{:.6f},val acc is:{:.6f}'.format(
         eval_loss / (len(valDataLoader) ),
         eval_acc / (len(valDataLoader))))
     if best_acc < (eval_acc / (len(valDataLoader))):
@@ -334,5 +334,5 @@ for epoch in range(num_epoches):
         best_model = model.state_dict()
         print('best acc is {:.6f},best model is changed'.format(best_acc))
 
-torch.save(best_model,'./model/best_model.pth')
-torch.save(model.state_dict(),'./model/last_model.pth')
+torch.save(best_model,'./model/best_model1.pth')
+torch.save(model.state_dict(),'./model/last_model1.pth')

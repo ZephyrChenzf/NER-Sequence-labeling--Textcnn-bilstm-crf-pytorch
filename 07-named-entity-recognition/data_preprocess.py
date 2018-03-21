@@ -146,6 +146,7 @@ def getTest_x(filepath):
 
     # 开始对每句话进行裁剪，主要是最大长度的限制
     test_x_cut = []#每个分割的词id
+    test_mask=[]
     test_x_len=[]#每句话本身的长度（不填充的长度）
     test_x_cut_word=[]#所有分割出的词
     count=0#用于样本计数
@@ -153,6 +154,7 @@ def getTest_x(filepath):
     for i in range(len(test_x)):
         if len(test_x[i]) <= MAX_LEN:  # 如果句子长度小于max_sen_len
             test_x_cut.append(test_x[i])
+            test_mask.append([1]*len(test_x[i]))
             test_x_len.append(len(test_x[i]))
             test_x_cut_word.append(test_word[i])
             count+=1
@@ -162,6 +164,7 @@ def getTest_x(filepath):
             for j in reversed(range(MAX_LEN)):  # 反向访问，99、98、97...
                 if test_x[i][j] == word2index['，'] or test_x[i][j] == word2index['、']:
                     test_x_cut.append(test_x[i][:j + 1])
+                    test_mask.append([1]*(j+1))
                     test_x_len.append(j+1)
                     test_x_cut_word.append(test_word[i][:j+1])
                     test_x[i] = test_x[i][j + 1:]
@@ -173,6 +176,7 @@ def getTest_x(filepath):
                     flag = True
             if flag:
                 test_x_cut.append(test_x[i][:MAX_LEN])
+                test_mask.append([1]*MAX_LEN)
                 test_x_len.append(MAX_LEN)
                 test_x_cut_word.append(test_word[i][:MAX_LEN])
                 test_x[i] = test_x[i][MAX_LEN:]
@@ -181,6 +185,7 @@ def getTest_x(filepath):
                 count+=1
         if len(test_x[i]) <= MAX_LEN:  # 如果句子长度小于max_sen_len，最后没有超过100的直接加入
             test_x_cut.append(test_x[i])
+            test_mask.append([1]*len(test_x[i]))
             test_x_len.append(len(test_x[i]))
             test_x_cut_word.append(test_word[i])
             count += 1
@@ -191,9 +196,129 @@ def getTest_x(filepath):
             tlen = len(test_x_cut[i])
             for j in range(MAX_LEN - tlen):
                 test_x_cut[i].append(0)
+    for i in range(len(test_mask)):
+        if len(test_mask[i]) < MAX_LEN:
+            tlen = len(test_mask[i])
+            for j in range(MAX_LEN - tlen):
+                test_mask[i].append(0)
     #转化LongTensor
     test_x_cut=torch.LongTensor(test_x_cut)
-    return test_x_cut,test_x_len,test_x_cut_word,test_x_fenge
+    test_mask=torch.ByteTensor(test_mask)
+    return test_x_cut,test_mask,test_x_len,test_x_cut_word,test_x_fenge
+
+#对测试集处理的函数
+def getTest_xy(filepath):
+    data=open(filepath,'r')
+    test_x = []  # 总x测试集
+    test_y=[]#总y测试集
+    test_word=[] #所有句话的词
+    sen_x = []  # 每次存一句话的id组
+    sen_y=[]    #每次存一句话的标签id组
+    sen_word=[]# 一句话的词
+
+    # 将数据按每句话分出来
+    for line in data:
+        line = line.strip()
+        if (line == "" or line == "\n" or line == "\r\n"):  # 一句话结束了
+            test_x.append(sen_x)
+            sen_x = []
+            test_y.append(sen_y)
+            sen_y=[]
+            test_word.append(sen_word)
+            sen_word=[]
+            continue
+        line = line.split(' ')
+        sen_word.append(line[0])
+        if line[0] in word2index:  # 如果在词典中有该词，将id给sen_x
+            sen_x.append(word2index[line[0]])
+            sen_y.append(tag2index[line[1]])
+        else:  # 如果没有则设为未识别
+            sen_x.append(1)
+            sen_y.append(tag2index[line[1]])
+
+    # 开始对每句话进行裁剪，主要是最大长度的限制
+    test_x_cut = []#每个分割的词id
+    test_y_cut=[]#每个分割的标签id
+    test_mask=[]
+    test_x_len=[]#每句话本身的长度（不填充的长度）
+    test_x_cut_word=[]#所有分割出的词
+    count=0#用于样本计数
+    test_x_fenge=[]#用于记分割了的样本序号
+    for i in range(len(test_x)):
+        if len(test_x[i]) <= MAX_LEN:  # 如果句子长度小于max_sen_len
+            test_x_cut.append(test_x[i])
+            test_y_cut.append(test_y[i])
+            test_mask.append([1]*len(test_x[i]))
+            test_x_len.append(len(test_x[i]))
+            test_x_cut_word.append(test_word[i])
+            count+=1
+            continue
+        while len(test_x[i]) > MAX_LEN:  # 超过100，使用标点符号拆分句子，将前面部分加入训练集，若后面部分仍超过100，继续拆分
+            flag = False
+            for j in reversed(range(MAX_LEN)):  # 反向访问，99、98、97...
+                if test_x[i][j] == word2index['，'] or test_x[i][j] == word2index['、']:
+                    test_x_cut.append(test_x[i][:j + 1])
+                    test_y_cut.append(test_y[i][:j+1])
+                    test_mask.append([1]*(j+1))
+                    test_x_len.append(j+1)
+                    test_x_cut_word.append(test_word[i][:j+1])
+                    test_x[i] = test_x[i][j + 1:]
+                    test_y[i]=test_y[i][j+1:]
+                    test_x_cut_word[i]=test_word[i][j+1:]
+                    test_x_fenge.append(count)
+                    count+=1
+                    break
+                if j == 0:
+                    flag = True
+            if flag:
+                test_x_cut.append(test_x[i][:MAX_LEN])
+                test_y_cut.append(test_y[i][:MAX_LEN])
+                test_mask.append([1]*MAX_LEN)
+                test_x_len.append(MAX_LEN)
+                test_x_cut_word.append(test_word[i][:MAX_LEN])
+                test_x[i] = test_x[i][MAX_LEN:]
+                test_y[i]=test_y[i][MAX_LEN:]
+                test_x_cut_word[i]=test_word[i][MAX_LEN:]
+                test_x_fenge.append(count)
+                count+=1
+        if len(test_x[i]) <= MAX_LEN:  # 如果句子长度小于max_sen_len，最后没有超过100的直接加入
+            test_x_cut.append(test_x[i])
+            test_y_cut.append(test_y[i])
+            test_mask.append([1]*len(test_x[i]))
+            test_x_len.append(len(test_x[i]))
+            test_x_cut_word.append(test_word[i])
+            count += 1
+
+    # 给每段分割填充0
+    # 给每段分割填充0
+    for i in range(len(test_x_cut)):
+        if len(test_x_cut[i]) < MAX_LEN:
+            tlen = len(test_x_cut[i])
+            for j in range(MAX_LEN - tlen):
+                test_x_cut[i].append(0)
+
+    for i in range(len(test_y_cut)):
+        if len(test_y_cut[i]) < MAX_LEN:
+            tlen = len(test_y_cut[i])
+            for j in range(MAX_LEN - tlen):
+                test_y_cut[i].append(0)
+
+    for i in range(len(test_mask)):
+        if len(test_mask[i]) < MAX_LEN:
+            tlen = len(test_mask[i])
+            for j in range(MAX_LEN - tlen):
+                test_mask[i].append(0)
+    #转化LongTensor
+    test_x_cut=torch.LongTensor(test_x_cut)
+    test_y_cut=torch.LongTensor(test_y_cut)
+    test_mask=torch.ByteTensor(test_mask)
+    return test_x_cut,test_y_cut,test_mask,test_x_len,test_x_cut_word,test_x_fenge
 
 def write_result_to_file(filepath,y_pred,test_x_len,test_x_cut_word,test_x_fenge):
-    pass
+    f=open(filepath,'w')
+    for i1 in range(y_pred.shape[0]):#样本数
+        for i2 in range(test_x_len[i1]):#每个样本的真实长度
+            tags=y_pred[i1][i2]
+            tag=0
+            for i3 in range(y_pred.shape[2]):#每个标签
+                pass
