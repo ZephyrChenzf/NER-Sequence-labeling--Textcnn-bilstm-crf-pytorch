@@ -14,5 +14,6 @@ pytorch用Textcnn-bilstm-crf模型实现命名实体识别<br>
 --------
 预测文件为‘predict.py’<br>
   
-
-        其它文件不太有用
+##数据
+--------
+数据存在data文件夹中
