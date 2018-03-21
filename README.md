@@ -13,6 +13,8 @@ pytorch用Textcnn-bilstm-crf模型实现命名实体识别<br>
 ##预测
 --------
 预测文件为‘predict.py’
+
+------------
   
 ##数据
 --------
