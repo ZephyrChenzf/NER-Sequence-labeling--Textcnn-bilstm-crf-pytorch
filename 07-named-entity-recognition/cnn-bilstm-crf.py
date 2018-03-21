@@ -113,7 +113,7 @@ class BILSTM_CRF(nn.Module):
 
     def get_all_score(self,emissions,mask):#计算所有路径的总分#s,b,h
         # emissions: (seq_length, batch_size, num_tags)
-        # mask: (seq_length, batch_size)
+        # mask: (batch_size,seq_length)
         seq_length = emissions.size(0)
         mask = mask.permute(1,0).contiguous().float()
 
@@ -139,8 +139,8 @@ class BILSTM_CRF(nn.Module):
 
     def get_real_score(self,emissions,mask,tags):#计算真实路径得分
         # emissions: (seq_length, batch_size, num_tags)
-        # tags: (seq_length, batch_size)
-        # mask: (seq_length, batch_size)
+        # tags: (batch_size,seq_length)
+        # mask: (batch_size,seq_length)
         seq_length = emissions.size(0)#s
         mask = mask.permute(1,0).contiguous().float()
         tags=tags.permute(1,0).contiguous()
@@ -176,81 +176,57 @@ class BILSTM_CRF(nn.Module):
         loss=(all_score.view(batch_size,1)-real_score.view(batch_size,1)).sum()/batch_size
         return loss #目标是最小化这个值，即最大化没log前的真实占总的比例
 
-    def _viterbi_decode(self,emission):#使用viterbi算法计算最优路径和最优得分
-        #emission: (seq_length, num_tags)
-        seq_length = emission.size(0)
+    def viterbi_decode(self, emissions,mask):
+        # emissions: (seq_length, batch_size, num_tags)
+        # mask: (batch_size,seq_length)
+        seq_length=emissions.size(0)
+        batch_size=emissions.size(1)
+        num_tags=emissions.size(2)
+        length_mask = torch.sum(mask, dim=1).view(batch_size, 1).long()  # 真实序列长度b,1
+        mask=mask.permute(1,0).contiguous().float()#s,b
 
-        # Start transition
-        viterbi_score = self.start_transitions + emission[0]#s0
-        viterbi_path = []
-        # Here, viterbi_score has shape of (num_tags,) where value at index i stores
-        # the score of the best tag sequence so far that ends with tag i
-        # viterbi_path saves where the best tags candidate transitioned from; this is used
-        # when we trace back the best tag sequence
+        viterbi_history=[]
+        viterbi_score = self.start_transitions.view(1, -1) + emissions[0]  # b,m,所有从start出发的路径s0
 
-        # Viterbi algorithm recursive case: we compute the score of the best tag sequence
-        # for every possible next tag
         for i in range(1, seq_length):
-            # Broadcast viterbi score for every possible next tag
-            broadcast_score = viterbi_score.view(-1, 1)#m,1
-            # Broadcast emission score for every possible current tag
-            broadcast_emission = emission[i].view(1, -1)#1,m
-            # Compute the score matrix of shape (num_tags, num_tags) where each entry at
-            # row i and column j stores the score of transitioning from tag i to tag j
-            # and emitting
-            score = broadcast_score + self.transitions + broadcast_emission#m,m
-            # Find the maximum score over all possible current tag
-            best_score, best_path = score.max(0)  # m
-            # Save the score and the path
-            viterbi_score = best_score
-            viterbi_path.append(best_path)
+            broadcast_viterbi_score = viterbi_score.unsqueeze(2)  # b,m,1
+            broadcast_transitions = self.transitions.unsqueeze(0)  #1,m,m
+            broadcast_emissions = emissions[i].unsqueeze(1)  # b,1,m
 
-        # End transition
-        viterbi_score += self.end_transitions#m
+            score = broadcast_viterbi_score + broadcast_transitions \
+                    + broadcast_emissions  # b,m,m
 
-        # Find the tag which maximizes the score at the last timestep; this is our best tag
-        # for the last timestep
-        _, best_last_tag = viterbi_score.max(0)#1
-        best_tags = [best_last_tag[0]]#最后到达的一个tag
-        best_tags_pad=[best_last_tag[0]]
-        # We trace back where the best last tag comes from, append that to our best tag
-        # sequence, and trace it back again, and so on
-        for path in reversed(viterbi_path):
-            best_last_tag = path[best_tags[-1]]
-            best_tags.append(best_last_tag)
-            best_tags_pad.append(best_last_tag)
-
-        # Reverse the order because we start from the last timestep
-        best_tags.reverse()
-        best_tags_pad.reverse()
-        pad=Variable(torch.LongTensor([0]))
+            best_score,best_path = torch.max(score, 1)  # b,m即为si
+            viterbi_history.append(best_path*mask[i].long().unsqueeze(1))#将带0pading的路径加进来
+            viterbi_score = best_score * mask[i].unsqueeze(1) + viterbi_score * (1. - mask[i]).unsqueeze(
+                1)  # mask为0的保持不变，mask为1的更换score
+        viterbi_score+=self.end_transitions.view(1,-1)#b,m
+        best_score,last_path=torch.max(viterbi_score,1)#b
+        last_path=last_path.view(-1,1)#b,1
+        last_position = (length_mask.contiguous().view(batch_size, 1, 1).expand(batch_size, 1, num_tags) - 1).contiguous()  # 最后一个非padding的位置b,1->b,1,m
+        pad_zero = Variable(torch.zeros(batch_size, num_tags)).long()
         if use_cuda:
-            pad=pad.cuda()
-        for i in range(MAXLEN-seq_length):
-            best_tags_pad.append(pad)
-        return torch.cat(best_tags),torch.cat(best_tags_pad)
-
-    def decode(self, emissions,mask):
-        # Transpose batch_size and seq_length
-        batch_len=emissions.size(1)
-        emissions = emissions.transpose(0, 1)
-        # mask = mask.transpose(0, 1)
-
-        best_tags = []
-        best_tags_pad=[]
-        for emission, mask_ in zip(emissions, mask):
-            seq_length = mask_.data.int().sum()  # 真实长度
-            # e=emission[:seq_length]
-            best_t,best_t_pad=self._viterbi_decode(emission[:seq_length])
-            best_tags.append(best_t)
-            best_tags_pad.append(best_t_pad)
-        best_tags_pad=torch.cat(best_tags_pad).view(batch_len,MAXLEN)
-        return best_tags,best_tags_pad
+            pad_zero = pad_zero.cuda()
+        viterbi_history.append(pad_zero)#(s-1,b,m)->(s,b,m)
+        viterbi_history = torch.cat(viterbi_history).view(-1, batch_size, num_tags)  # s,b,m
+        insert_last = last_path.view(batch_size, 1, 1).expand(batch_size, 1, num_tags) #要将最后的路径插入最后的真实位置b,1,m
+        viterbi_history = viterbi_history.transpose(1, 0).contiguous()  # b,s,m
+        viterbi_history.scatter_(1, last_position, insert_last)  # 将最后位置的路径统一改为相同路径b,s,m（back_points中的某些值改变了）
+        viterbi_history = viterbi_history.transpose(1, 0).contiguous()  # s,b,m
+        decode_idx = Variable(torch.LongTensor(seq_length, batch_size))#最后用来记录路径的s,b
+        if use_cuda:
+            decode_idx = decode_idx.cuda()
+        # decode_idx[-1] = 0
+        for idx in range(len(viterbi_history)-2,-1,-1):
+            last_path=torch.gather(viterbi_history[idx],1,last_path)
+            decode_idx[idx]=last_path.data
+        decode_idx=decode_idx.transpose(1,0)#b,s
+        return decode_idx
 
     def forward(self, feats,mask):
         #feats    #bilstm的输出#100.b.10
-        best_path,best_path_pad=self.decode(feats,mask)#最佳路径
-        return best_path,best_path_pad
+        best_path=self.viterbi_decode(feats,mask)#最佳路径b,s
+        return best_path
 
 
 if use_cuda:
@@ -282,8 +258,8 @@ for epoch in range(num_epoches):
         feats=model.get_bilstm_out(x)
         loss=model.neg_log_likelihood(feats,y,mask)
         train_loss+=loss.data[0]
-        prepath,prepath_pad=model(feats,mask)
-        pre_y=torch.cat(prepath)
+        prepath=model(feats,mask)#b,s
+        pre_y=prepath.masked_select(mask)
         true_y=y.masked_select(mask)
         acc_num=(pre_y==true_y).data.sum()
         # acc_num=(pre_y==true_y).sum()
