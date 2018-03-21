@@ -296,8 +296,8 @@ for epoch in range(num_epoches):
         feats=model.get_bilstm_out(x)
         loss=model.neg_log_likelihood(feats,y,mask)
         eval_loss += loss.data[0]
-        prepath, prepath_pad = model(feats, mask)
-        pre_y = torch.cat(prepath)
+        prepath = model(feats, mask)  # b,s
+        pre_y = prepath.masked_select(mask)
         true_y = y.masked_select(mask)
         acc_num = (pre_y == true_y).data.sum()
         acc_pro = float(acc_num) / len(pre_y)
