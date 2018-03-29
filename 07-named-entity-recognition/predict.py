@@ -13,7 +13,7 @@ use_cuda = torch.cuda.is_available()
 
 word2index, index2word, tag2index, index2tag = data_preprocess.get_dic()
 test_x_cut, test_y_cut, test_mask, test_x_len, test_x_cut_word, test_x_fenge = data_preprocess.getTest_xy(
-    './data/train_data')
+    './data/test_data')
 testDataSet = data_preprocess.TextDataSet(test_x_cut, test_y_cut, test_mask)
 
 testDataLoader = DataLoader(testDataSet, batch_size=16, shuffle=False)
@@ -234,12 +234,13 @@ if use_cuda:
 else:
     model = BILSTM_CRF(vcab_size, tag2index, emb_dim, hidden_dim, batch_size)
 
-model.load_state_dict(torch.load('./model/best_model1.pth'))
+model.load_state_dict(torch.load('./model/best_model.pth'))
 
 # model.eval()
 test_loss = 0
 test_acc = 0
 batch_len_all = 0
+prepath_all=[]#所有batch的路径综合
 for i, data in enumerate(testDataLoader):
     x, y, mask = data
     batch_len = len(x)
@@ -256,6 +257,7 @@ for i, data in enumerate(testDataLoader):
     loss = model.neg_log_likelihood(feats, y, mask)
     test_loss += loss.data[0]
     prepath = model(feats, mask)  # b,s
+    prepath_all.append(prepath)
     pre_y = prepath.masked_select(mask)
     true_y = y.masked_select(mask)
     acc_num = (pre_y == true_y).data.sum()
@@ -263,3 +265,6 @@ for i, data in enumerate(testDataLoader):
     test_acc += acc_pro
 print('test loss is:{:.6f},test acc is:{:.6f}'.format(test_loss / (len(testDataLoader)),test_acc / (len(testDataLoader))))
 
+#写入结果文件
+prepath_all=torch.cat(prepath_all).data
+data_preprocess.write_result_to_file('./data/result_data',prepath_all,test_x_len,test_x_cut_word,test_x_fenge)

@@ -269,7 +269,7 @@ for epoch in range(num_epoches):
         optimzier.zero_grad()
         loss.backward()
         optimzier.step()
-        if (i + 1) % 10 == 0:
+        if (i + 1) % 100 == 0:
             print('[{}/{}],train loss is:{:.6f},train acc is:{:.6f}'.format(i+1, len(trainDataLoader),
                                                                             train_loss / (i+1),
                                                                             train_acc / (i+1)))
@@ -310,5 +310,5 @@ for epoch in range(num_epoches):
         best_model = model.state_dict()
         print('best acc is {:.6f},best model is changed'.format(best_acc))
 
-torch.save(best_model,'./model/best_model1.pth')
-torch.save(model.state_dict(),'./model/last_model1.pth')
+torch.save(best_model,'./model/best_model.pth')
+torch.save(model.state_dict(),'./model/last_model.pth')

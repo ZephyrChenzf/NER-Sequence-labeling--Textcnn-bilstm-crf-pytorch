@@ -318,7 +318,13 @@ def write_result_to_file(filepath,y_pred,test_x_len,test_x_cut_word,test_x_fenge
     f=open(filepath,'w')
     for i1 in range(y_pred.shape[0]):#样本数
         for i2 in range(test_x_len[i1]):#每个样本的真实长度
-            tags=y_pred[i1][i2]
-            tag=0
-            for i3 in range(y_pred.shape[2]):#每个标签
-                pass
+            tag_id=y_pred[i1][i2]
+            word=test_x_cut_word[i1][i2]
+            if tag_id in index2tag:
+                tag=index2tag[tag_id]
+            else:
+                tag='o'
+            f.write(word+' '+tag+'\n')
+        if i1 not in test_x_fenge:
+            f.write('\n')
+    f.close()
