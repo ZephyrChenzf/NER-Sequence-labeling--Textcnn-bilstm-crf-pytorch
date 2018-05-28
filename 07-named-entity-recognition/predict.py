@@ -61,14 +61,14 @@ class BILSTM_CRF(nn.Module):
         self.classfy=nn.Linear(hidden_dim,self.num_tags)#100*b,10
         #->100,b,10
         # init transitions
-        self.start_transitions = nn.Parameter(torch.Tensor(self.num_tags))#i表示出发，j表示到达
-        self.end_transitions = nn.Parameter(torch.Tensor(self.num_tags))#i表示到达，j表示出发
-        self.transitions = nn.Parameter(torch.Tensor(self.num_tags, self.num_tags))#i表示出发，j表示到达
+        self.start_transitions = nn.Parameter(torch.Tensor(self.num_tags))#
+        self.end_transitions = nn.Parameter(torch.Tensor(self.num_tags))#
+        self.transitions = nn.Parameter(torch.Tensor(self.num_tags, self.num_tags))#
         nn.init.uniform(self.start_transitions, -0.1, 0.1)
         nn.init.uniform(self.end_transitions, -0.1, 0.1)
         nn.init.uniform(self.transitions, -0.1, 0.1)
 
-    def init_hidden(self,batch_size):#作为初始化传入lstm的隐含变量
+    def init_hidden(self,batch_size):#
         h_h=Variable(torch.randn(2,batch_size,self.hidden_dim))
         h_c=Variable(torch.randn(2,batch_size,self.hidden_dim))
         if use_cuda:
@@ -76,7 +76,7 @@ class BILSTM_CRF(nn.Module):
             h_c=h_c.cuda()
         return (h_h,h_c)
 
-    def get_bilstm_out(self,x):#计算bilstm的输出
+    def get_bilstm_out(self,x):#
         batch_size = x.size(0)
         emb=self.embed(x)
 
@@ -112,13 +112,13 @@ class BILSTM_CRF(nn.Module):
         # Add offset back
         return offset + safe_log_sum_exp
 
-    def get_all_score(self,emissions,mask):#计算所有路径的总分#s,b,h
+    def get_all_score(self,emissions,mask):#
         # emissions: (seq_length, batch_size, num_tags)
         # mask: (batch_size,seq_length)
         seq_length = emissions.size(0)
         mask = mask.permute(1,0).contiguous().float()
 
-        log_prob = self.start_transitions.view(1, -1) + emissions[0]  # b,m,所有从start出发的路径s0
+        log_prob = self.start_transitions.view(1, -1) + emissions[0]  # b,m,
 
         for i in range(1, seq_length):
             broadcast_log_prob = log_prob.unsqueeze(2)  # b,m,1
@@ -128,17 +128,17 @@ class BILSTM_CRF(nn.Module):
             score = broadcast_log_prob + broadcast_transitions \
                     + broadcast_emissions  # b,m,m
 
-            score = self._log_sum_exp(score, 1)  # b,m即为si
+            score = self._log_sum_exp(score, 1)  # 
 
             log_prob = score * mask[i].unsqueeze(1) + log_prob * (1. - mask[i]).unsqueeze(
-                1)  # mask为0的保持不变，mask为1的更换score
+                1)  # 
 
         # End transition score
         log_prob += self.end_transitions.view(1, -1)
         # Sum (log-sum-exp) over all possible tags
-        return self._log_sum_exp(log_prob, 1)  # (batch_size,)返回最终score
+        return self._log_sum_exp(log_prob, 1)  # (batch_size,)
 
-    def get_real_score(self,emissions,mask,tags):#计算真实路径得分
+    def get_real_score(self,emissions,mask,tags):#
         # emissions: (seq_length, batch_size, num_tags)
         # tags: (batch_size,seq_length)
         # mask: (batch_size,seq_length)
@@ -152,30 +152,30 @@ class BILSTM_CRF(nn.Module):
         for i in range(seq_length - 1):
             cur_tag, next_tag = tags[i], tags[i+1]
             # Emission score for current tag
-            llh += emissions[i].gather(1, cur_tag.view(-1, 1)).squeeze(1) * mask[i]#(b,1)->b->b*mask，上一轮score+当前发射概率
+            llh += emissions[i].gather(1, cur_tag.view(-1, 1)).squeeze(1) * mask[i]#(b,1)->b->b*mask，
             # Transition score to next tag
-            transition_score = self.transitions[cur_tag.data, next_tag.data]#当前到下一轮的转换概率
+            transition_score = self.transitions[cur_tag.data, next_tag.data]#
             # Only add transition score if the next tag is not masked (mask == 1)
-            llh += transition_score * mask[i+1]#若下一轮为padding则不转换
+            llh += transition_score * mask[i+1]#
 
         # Find last tag index
-        last_tag_indices = mask.long().sum(0) - 1  # (batch_size,)计算每个序列真实长度
-        last_tags = tags.gather(0, last_tag_indices.view(1, -1)).squeeze(0)#b,最后一个非padding的标签id
+        last_tag_indices = mask.long().sum(0) - 1  # (batch_size,)
+        last_tags = tags.gather(0, last_tag_indices.view(1, -1)).squeeze(0)#b
 
         # End transition score
-        llh += self.end_transitions[last_tags]#加上从最后一个非padding标签到end的转换概率
+        llh += self.end_transitions[last_tags]#
         # Emission score for the last tag, if mask is valid (mask == 1)
-        llh += emissions[-1].gather(1, last_tags.view(-1, 1)).squeeze(1) * mask[-1]#考虑最后一个seq为有效id
+        llh += emissions[-1].gather(1, last_tags.view(-1, 1)).squeeze(1) * mask[-1]#
 
         return llh#b
 
     def neg_log_likelihood(self,feats,tags,mask):
-        #feats:  bilstm的输出#100,b,10
+        #feats:  
         batch_size=feats.size(1)
-        all_score=self.get_all_score(feats,mask)#所有路径总分b
-        real_score=self.get_real_score(feats,mask,tags)#真实路径得分b
+        all_score=self.get_all_score(feats,mask)#
+        real_score=self.get_real_score(feats,mask,tags)#
         loss=(all_score.view(batch_size,1)-real_score.view(batch_size,1)).sum()/batch_size
-        return loss #目标是最小化这个值，即最大化没log前的真实占总的比例
+        return loss #
 
     def viterbi_decode(self, emissions,mask):
         # emissions: (seq_length, batch_size, num_tags)
@@ -183,11 +183,11 @@ class BILSTM_CRF(nn.Module):
         seq_length=emissions.size(0)
         batch_size=emissions.size(1)
         num_tags=emissions.size(2)
-        length_mask = torch.sum(mask, dim=1).view(batch_size, 1).long()  # 真实序列长度b,1
+        length_mask = torch.sum(mask, dim=1).view(batch_size, 1).long()  #
         mask=mask.permute(1,0).contiguous().float()#s,b
 
         viterbi_history=[]
-        viterbi_score = self.start_transitions.view(1, -1) + emissions[0]  # b,m,所有从start出发的路径s0
+        viterbi_score = self.start_transitions.view(1, -1) + emissions[0]  # 
 
         for i in range(1, seq_length):
             broadcast_viterbi_score = viterbi_score.unsqueeze(2)  # b,m,1
@@ -197,24 +197,24 @@ class BILSTM_CRF(nn.Module):
             score = broadcast_viterbi_score + broadcast_transitions \
                     + broadcast_emissions  # b,m,m
 
-            best_score,best_path = torch.max(score, 1)  # b,m即为si
-            viterbi_history.append(best_path*mask[i].long().unsqueeze(1))#将带0pading的路径加进来
+            best_score,best_path = torch.max(score, 1)  # 
+            viterbi_history.append(best_path*mask[i].long().unsqueeze(1))#
             viterbi_score = best_score * mask[i].unsqueeze(1) + viterbi_score * (1. - mask[i]).unsqueeze(
-                1)  # mask为0的保持不变，mask为1的更换score
+                1)  # 
         viterbi_score+=self.end_transitions.view(1,-1)#b,m
         best_score,last_path=torch.max(viterbi_score,1)#b
         last_path=last_path.view(-1,1)#b,1
-        last_position = (length_mask.contiguous().view(batch_size, 1, 1).expand(batch_size, 1, num_tags) - 1).contiguous()  # 最后一个非padding的位置b,1->b,1,m
+        last_position = (length_mask.contiguous().view(batch_size, 1, 1).expand(batch_size, 1, num_tags) - 1).contiguous()  #
         pad_zero = Variable(torch.zeros(batch_size, num_tags)).long()
         if use_cuda:
             pad_zero = pad_zero.cuda()
         viterbi_history.append(pad_zero)#(s-1,b,m)->(s,b,m)
         viterbi_history = torch.cat(viterbi_history).view(-1, batch_size, num_tags)  # s,b,m
-        insert_last = last_path.view(batch_size, 1, 1).expand(batch_size, 1, num_tags) #要将最后的路径插入最后的真实位置b,1,m
+        insert_last = last_path.view(batch_size, 1, 1).expand(batch_size, 1, num_tags) #
         viterbi_history = viterbi_history.transpose(1, 0).contiguous()  # b,s,m
-        viterbi_history.scatter_(1, last_position, insert_last)  # 将最后位置的路径统一改为相同路径b,s,m（back_points中的某些值改变了）
+        viterbi_history.scatter_(1, last_position, insert_last)  # 
         viterbi_history = viterbi_history.transpose(1, 0).contiguous()  # s,b,m
-        decode_idx = Variable(torch.LongTensor(seq_length, batch_size))#最后用来记录路径的s,b
+        decode_idx = Variable(torch.LongTensor(seq_length, batch_size))#
         if use_cuda:
             decode_idx = decode_idx.cuda()
         # decode_idx[-1] = 0
@@ -240,7 +240,7 @@ model.load_state_dict(torch.load('./model/best_model.pth'))
 test_loss = 0
 test_acc = 0
 batch_len_all = 0
-prepath_all=[]#所有batch的路径综合
+prepath_all=[]#
 for i, data in enumerate(testDataLoader):
     x, y, mask = data
     batch_len = len(x)
